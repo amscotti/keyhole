@@ -1,0 +1,5 @@
+# Office document fixtures are binary containers; keep diffs out of text
+# conversion and preserve their bytes exactly.
+internal/transform/testdata/*.docx binary
+internal/transform/testdata/*.pptx binary
+internal/transform/testdata/*.xlsx binary

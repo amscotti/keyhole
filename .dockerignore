@@ -1,0 +1,36 @@
+# Build artifacts
+keyhole
+dist/
+*.test
+
+# Config and secrets — never bake real config or tokens into the image
+config.toml
+.env
+*.local.toml
+
+# Logs
+*.log
+
+# Test artifacts
+coverage.out
+coverage/
+e2e/
+
+# Review artifacts and local databases — never enter the build context
+.review/
+*.sqlite*
+
+# Agent dev-loop workspace (gitignored, never committed)
+agent/
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Docker itself — not needed in the build context
+Dockerfile
+.dockerignore
+
+# CI config — not needed at build time
+.github/

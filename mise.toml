@@ -1,0 +1,91 @@
+# Keyhole toolchain + tasks — pinned via mise. One `mise install` on a clean
+# checkout gives every engineer and AI assistant the same environment.
+# Tasks replace a Makefile: `mise run <task>` (fmt, lint, test, build, ...).
+# Pin exact versions with `mise latest <tool>` when bumping.
+
+[tools]
+go = "1.26.5"            # core plugin
+golangci-lint = "2.12.2" # lint gate (mise run lint)
+pandoc = "3.10.1"        # optional: office -> markdown
+
+[tasks.fmt]
+description = "Format Go sources"
+run = "gofmt -w ."
+
+[tasks.lint]
+description = "Lint gate (golangci-lint)"
+run = "golangci-lint run"
+
+[tasks.test]
+description = "Unit tests with the race detector"
+run = "go test -race ./cmd/... ./internal/..."
+
+[tasks.test-e2e]
+description = "End-to-end tests against a real keyhole binary (REST + MCP HTTP)"
+run = "go test -race -count=1 ./e2e/..."
+
+[tasks.test-all]
+description = "Unit + e2e tests"
+run = """
+set -euo pipefail
+mise run test
+mise run test-e2e
+"""
+
+[tasks.test-integration]
+description = "Network/pandoc-gated integration tests (skipped by default)"
+run = "go test -race -tags=integration ./cmd/... ./internal/..."
+
+[tasks.test-integration-office]
+description = "Office -> markdown integration tests (pandoc; no network)"
+# CI lane: -run keeps the live-network YouTube integration tests out.
+run = "go test -tags=integration -run 'TestIntegrationOffice' ./internal/transform/..."
+
+[tasks.fuzz-smoke]
+description = "Short fuzz smoke for the rules Normalize target"
+run = "go test -run=XXX -fuzz=FuzzNormalize -fuzztime=15s ./internal/rules/"
+
+[tasks.vuln]
+description = "Scan for known vulnerabilities (govulncheck)"
+run = """
+set -euo pipefail
+go install golang.org/x/vuln/cmd/govulncheck@latest
+"$(go env GOPATH)/bin/govulncheck" ./...
+"""
+
+[tasks.cover]
+description = "Unit-test coverage report (text + coverage.out for go tool cover)"
+run = """
+set -euo pipefail
+mkdir -p coverage
+go test -race -covermode=atomic -coverprofile=coverage/coverage.out ./cmd/... ./internal/...
+go tool cover -func=coverage/coverage.out | tee coverage/coverage.txt
+echo ""
+echo "HTML report: go tool cover -html=coverage/coverage.out -o coverage/coverage.html"
+echo "Summary (total) above; open coverage/coverage.txt for per-function detail."
+"""
+
+[tasks.cover-html]
+description = "Generate HTML coverage report under coverage/"
+run = """
+set -euo pipefail
+mise run cover
+go tool cover -html=coverage/coverage.out -o coverage/coverage.html
+echo "Wrote coverage/coverage.html"
+"""
+
+[tasks.build]
+description = "Build the keyhole binary"
+run = "go build -o keyhole ./cmd/keyhole"
+
+[tasks.start]
+description = "Run keyhole with the local config"
+run = "go run ./cmd/keyhole --config config.toml"
+
+[tasks.bench]
+description = "Run benchmarks (skip regular tests)"
+run = "go test -bench=. -run=^$ -benchmem ./..."
+
+[tasks.docker]
+description = "Build the container image"
+run = "docker build -t keyhole ."

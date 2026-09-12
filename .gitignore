@@ -1,0 +1,28 @@
+# Build artifacts
+/keyhole
+/dist/
+
+# Config and secrets — never commit real config or tokens
+config.toml
+.env
+*.local.toml
+
+# Logs
+*.log
+
+# Test artifacts
+coverage.out
+coverage/
+*.test
+
+# Local databases and review artifacts
+*.sqlite*
+.review/
+
+# Agent dev-loop workspace (loop state — never committed)
+agent/
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/

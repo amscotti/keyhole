@@ -1,0 +1,87 @@
+# golangci-lint v2 configuration.
+# Docs: https://golangci-lint.run/usage/configuration/
+#
+# Sane, stable settings — no aggressive rules that block CI. The plan calls for
+# errcheck, govet, staticcheck, gocritic, and ineffassign (see PLAN.md §2).
+
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - contextcheck
+    - depguard
+    - errcheck
+    - govet
+    - staticcheck
+    - gocritic
+    - ineffassign
+  settings:
+    # contextcheck enforces the request-context architecture: blocking work
+    # must propagate the caller's context instead of context.Background().
+    # (See Transform.ContextTransform and internal/arch tests.)
+    contextcheck:
+      allow-joining-context-in-parallel: true
+    # depguard enforces the layering architecture. Production layering is
+    # also locked by internal/arch tests (which cover non-test files only,
+    # since e.g. config tests legitimately build a rules engine); the rules
+    # below are scoped to stay green including _test.go files.
+    depguard:
+      rules:
+        # The entrypoint wires dependencies — nothing under internal/
+        # imports it back.
+        no-entrypoint-imports:
+          files:
+            - internal/**/*.go
+          deny:
+            - pkg: github.com/amscotti/keyhole/cmd/...
+              desc: cmd wires internal packages, never the reverse
+        # The transform layer sits below fetch/server: its only network
+        # dependency is the egress choke point.
+        transform-layering:
+          files:
+            - internal/transform/**/*.go
+          deny:
+            - pkg: github.com/amscotti/keyhole/internal/fetch
+              desc: transform must not import fetch; share internal/egress instead
+            - pkg: github.com/amscotti/keyhole/internal/server
+              desc: transform must not import server
+            - pkg: github.com/amscotti/keyhole/internal/mcpserver
+              desc: transform must not import mcpserver
+        # The fetch layer sits below server: no upward imports.
+        fetch-layering:
+          files:
+            - internal/fetch/**/*.go
+          deny:
+            - pkg: github.com/amscotti/keyhole/internal/server
+              desc: fetch must not import server
+            - pkg: github.com/amscotti/keyhole/internal/transform
+              desc: fetch must not import transform; share internal/egress instead
+            - pkg: github.com/amscotti/keyhole/internal/mcpserver
+              desc: fetch must not import mcpserver
+        # Egress is the bottom of the stack: standard library only, so it
+        # can never create an import cycle.
+        egress-stdlib-only:
+          files:
+            - internal/egress/**/*.go
+          deny:
+            - pkg: github.com/amscotti/keyhole/...
+              desc: egress must stay dependency-free (stdlib only)
+    gocritic:
+      # Disabled tags keep CI calm without weakening real bug-finding checks.
+      disabled-tags:
+        - opinionated
+        - experimental
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/amscotti/keyhole

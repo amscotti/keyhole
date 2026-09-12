@@ -1,0 +1,125 @@
+# Keyhole CI — the gate on every push and pull request.
+# One mise-driven job reproduces the local dev contract exactly:
+#   mise install → fmt check → lint → test (-race) → test-e2e.
+# The toolchain is pinned in mise.toml (go, golangci-lint, pandoc);
+# mise-action reads [tools] from it, so a clean checkout needs zero manual setup.
+#
+# Alongside the gate, focused jobs cover the pre-publication review gaps:
+# govulncheck, office integration (pandoc), a fuzz smoke run, and a container
+# build. They run in parallel with the gate so a slow lane never delays the
+# fmt/lint/test/e2e signal.
+#
+# Runner image is pinned to ubuntu-24.04 (not ubuntu-latest) so the Oct 2026
+# migration of the -latest label to Ubuntu 26 cannot silently change the CI
+# environment; bump deliberately after validating the new image.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Cancel in-flight runs for the same ref when a new commit lands.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs every tool pinned in mise.toml and exposes them on PATH.
+      # Cache keys off mise.toml so a version bump re-installs correctly.
+      - uses: jdx/mise-action@v2
+        with:
+          cache: true
+          # Only install; tasks run explicitly below so failures surface clearly.
+          run: false
+
+      # `mise run fmt` writes; in CI we check instead. gofmt -l lists files that
+      # need formatting — any output is a failure. (golangci-lint's goimports
+      # formatter enforces import ordering in the lint step below.)
+      - name: Check formatting
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "::error::gofmt would reformat the following files:"
+            echo "$out"
+            exit 1
+          fi
+
+      - name: Lint
+        run: mise run lint
+
+      - name: Test
+        run: mise run test
+
+      - name: E2E
+        run: mise run test-e2e
+
+  # Known-CVE scan over the module graph. @latest is deliberate: govulncheck
+  # reads the live advisory database at run time and the binary should track
+  # it; the Go toolchain itself stays pinned by mise.toml.
+  govulncheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          cache: true
+          run: false
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          # `go install` lands in $(go env GOPATH)/bin, which is not guaranteed
+          # to be on PATH for every runner image.
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          govulncheck ./...
+
+  # Office → Markdown integration lane. pandoc is pinned/installed by mise.
+  # The -run filter is intentional: YouTube integration tests fetch the live
+  # network and must never run in CI.
+  integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          cache: true
+          run: false
+
+      - name: Office integration (pandoc)
+        run: go test -tags=integration -run 'TestIntegrationOffice' ./internal/transform/...
+
+  # Short fuzz smoke for the policy normalizer: a crash or hang fails the
+  # job. This is a regression tripwire, not a long fuzzing campaign.
+  fuzz:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          cache: true
+          run: false
+
+      - name: Fuzz smoke (FuzzNormalize)
+        run: go test -run=XXX -fuzz=FuzzNormalize -fuzztime=15s ./internal/rules/
+
+  # Container smoke test: the default (full) target is the published image,
+  # with pandoc baked in. A build failure (Dockerfile drift, missing
+  # module, bad base image tag) fails the job.
+  docker:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build final image
+        run: docker build -t keyhole:ci .

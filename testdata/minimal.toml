@@ -1,0 +1,3 @@
+# Minimal config exercising default-value fallback (Phase 0).
+[server]
+listen = ""

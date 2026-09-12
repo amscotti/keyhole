@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Understanding Distributed Systems</title>
+    <meta name="author" content="Jane Doe">
+    <meta property="og:site_name" content="Tech Blog">
+</head>
+<body>
+    <nav class="site-nav">
+        <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/tutorials">Tutorials</a></li>
+            <li><a href="/contact">Contact</a></li>
+        </ul>
+    </nav>
+    <div class="ad-banner">
+        <p>BUY NOW! Special offer on web hosting! Click here for 50% off!</p>
+    </div>
+    <div class="sidebar">
+        <h3>Subscribe</h3>
+        <p>Get our newsletter for more tips!</p>
+        <form>
+            <input type="email" placeholder="Email">
+            <button>Subscribe</button>
+        </form>
+        <h3>Related Posts</h3>
+        <ul>
+            <li><a href="/post1">Post 1</a></li>
+            <li><a href="/post2">Post 2</a></li>
+        </ul>
+    </div>
+    <article>
+        <h1>Understanding Distributed Systems</h1>
+        <p class="byline">By Jane Doe</p>
+        <p>Distributed systems are collections of independent computers that appear to their users as a single coherent system. They solve real-world problems that are too large for a single machine.</p>
+
+        <h2>Core Principles</h2>
+        <p>The design of a distributed system revolves around several core principles: fault tolerance, scalability, and consistency. Each principle trades off against the others, and understanding these trade-offs is the key to good architecture.</p>
+
+        <h2>The CAP Theorem</h2>
+        <p>The CAP theorem states that a distributed system can provide at most two of three guarantees: consistency, availability, and partition tolerance. In practice, partition tolerance is non-negotiable, so the real choice is between consistency and availability during network partitions.</p>
+
+        <p>This has profound implications for system design. A system that prioritizes availability may return stale data during a partition, while a system that prioritizes consistency may refuse requests until the partition heals.</p>
+
+        <h2>Conclusion</h2>
+        <p>Distributed systems are hard but necessary. By understanding the fundamental trade-offs, engineers can make informed decisions about which guarantees matter most for their use case.</p>
+    </article>
+    <div class="ad-footer">
+        <p>Sponsored: Try our new monitoring tool! Free trial available now!</p>
+    </div>
+    <footer>
+        <p>&copy; 2026 Tech Blog. All rights reserved.</p>
+        <nav class="footer-nav">
+            <a href="/privacy">Privacy</a> | <a href="/terms">Terms</a>
+        </nav>
+    </footer>
+</body>
+</html>

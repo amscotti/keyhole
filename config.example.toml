@@ -1,0 +1,159 @@
+# Keyhole — reference configuration.
+# Copy to config.toml and edit. Values shown are a recommended baseline, not
+# all built-in defaults: [metrics] and [cache] are enabled here, and the
+# [youtube]/[mcp]/[[rules]] values are examples to adapt.
+
+# "deny"  = allowlist mode: only URLs matched by an allow rule are fetchable (recommended)
+# "allow" = blocklist mode: everything is fetchable except URLs matched by a deny rule
+default_policy = "deny"
+
+[server]
+listen = ":8080"
+# Optional shared key for REST and MCP Streamable HTTP (X-API-Key header).
+# Empty = no transport auth. Applied to both /fetch and remote MCP /mcp so
+# enabling [mcp] transport = "http" does not bypass this gate.
+api_key = ""
+# Hot-reload the config file on change. OFF by default: the clients are AI agents —
+# a rogue model with write access to this file must not be able to silently alter policy.
+# When true, a successful reload rebuilds the policy engine, fetcher, auth profiles,
+# transforms, and cache — live allow/deny rules take effect on the next request.
+# Startup-only fields are NOT hot-reloaded: edits to [server]
+# listen/api_key/rate, [metrics], [logging], [mcp] enabled/transport/listen,
+# or reload itself are rejected (logged as "config reload rejected") and
+# require a restart.
+reload = false
+# When false (default), clients cannot pick auth_profile on a request; only a
+# profile attached to the matched [[rules]] entry is applied. Set true only if
+# you intentionally let callers choose which secret to attach to allowlisted URLs.
+allow_client_auth_profile = false
+
+# Per-client-IP rate limiting on /fetch and MCP Streamable HTTP (Phase 8).
+# When rps > 0 a token-bucket limiter caps requests; exceeding clients get
+# 429 + Retry-After. rps = 0 disables.
+[server.rate]
+rps = 0       # requests/second per client IP (0 = disabled)
+burst = 0     # max burst size (must be > 0 when rps > 0)
+
+[logging]
+level = "info"        # debug | info | warn | error
+format = "json"       # json (Datadog-friendly) | console
+output = "stdout"     # stdout | /path/to/file.log
+
+[metrics]
+enabled = true
+path = "/metrics"
+
+[network]
+timeout = "30s"
+# Response body cap (also applied to YouTube caption GETs). Omitted/0 → 5 MiB.
+# There is no unlimited mode — a zero value is treated as the default.
+max_size = 5242880    # 5 MiB
+max_redirects = 10
+user_agent = "keyhole/0.1"
+# Permit RFC1918/loopback/link-local targets. Required for internal-site use.
+# Defaults to false so the service is safe to expose without review.
+allow_private = false
+respect_robots = false
+# DNS-rebinding pin (Phase 8). When true, a hostname resolving to a
+# private/link-local/metadata IP is refused EVEN with allow_private = true — a
+# public hostname mapping to an internal address is the classic rebinding
+# signal. Default off: the tradeoff is that internal sites accessed by hostname
+# cannot be fetched while pinning is on.
+pin_dns = false
+
+[cache]
+enabled = true
+ttl = "10m"
+max_entries = 10000      # omitted → 10000; never unbounded
+max_bytes = 67108864     # total cached value bytes, omitted → 64 MiB; never unbounded
+
+[mcp]
+enabled = false
+# "stdio" = JSON-RPC over stdin/stdout (default, for local agents like Claude Desktop).
+# "http"  = MCP Streamable HTTP, served at [mcp] listen + /mcp (for remote clients).
+# Enabling MCP (flag or config) REPLACES the REST API: /fetch, /healthz, /readyz,
+# and /metrics are not served in MCP mode. Run a second process for both.
+transport = "stdio"   # stdio | http
+# Required when transport = "http" (even when enabled = false); ignored for stdio.
+listen = ":9090"
+# Set true only when a reverse proxy that preserves the original Host sits in
+# front of a loopback listener; it disables the MCP library's DNS-rebinding
+# Host-header guard. Leave false otherwise.
+disable_localhost_protection = false
+
+[output]
+max_chars = 100000    # default truncation applied to content (omitted → 100000; use a very large value to disable truncation)
+
+[youtube]
+transcript_language = "en"
+include_timestamps = false
+max_chars = 50000
+# Comments are NOT supported in this version of Keyhole (deferred).
+
+[office]
+pandoc_path = "pandoc"    # optional binary; docx/pptx/xlsx/odt requests fail with "unsupported" (400) if missing
+timeout = "30s"
+
+# Named outbound-auth profiles. Header VALUES are never logged; only the fact
+# that a profile was applied. Values may reference env vars as ${KEYHOLE_*}.
+[[auth_profiles]]
+name = "github"
+headers = { Authorization = "token ${KEYHOLE_GITHUB_TOKEN}" }
+
+[[auth_profiles]]
+name = "internal-sso"
+headers = { Authorization = "Bearer ${KEYHOLE_INTERNAL_TOKEN}" }
+
+# Rules: glob over the FULL normalized URL (scheme://host/path?query).
+#   *  matches within a path segment; ** crosses segments.
+# The most specific matching rule wins: longest literal prefix first, then the
+# most literal bytes in the pattern (so "host/**/*.docx" beats "host/**").
+# Remaining ties resolve to deny (fail closed).
+# Deny applies to both the original URL and the final URL after redirects.
+# Set ignore_query = true on a rule to match the path regardless of parameters.
+# Query strings otherwise match byte-for-byte: percent-encoding differences do
+# not match each other.
+
+# Example: allow an internal site, except one area of it.
+[[rules]]
+match = "https://internal.example.com/**"
+allow = true
+transforms = ["raw", "markdown", "article"]
+auth_profile = "internal-sso"
+
+[[rules]]
+match = "https://internal.example.com/hr/**"
+allow = false
+
+# Example: allow office documents from a docs host, converting to Markdown via pandoc.
+# Requires pandoc (mise install). Requests fail with "unsupported" if pandoc is absent.
+# Listed before the broad docs rule for readability; specificity scoring would
+# pick it either way (more literal bytes at the same prefix).
+[[rules]]
+match = "https://docs.example.com/**/*.docx"
+allow = true
+transforms = ["office"]
+
+# Example: single public domain, markdown and article only.
+[[rules]]
+match = "https://docs.example.com/**"
+allow = true
+transforms = ["markdown", "article"]
+
+# Example.com — the URL used by the quickstart curl in the README DoD.
+[[rules]]
+match = "https://example.com/**"
+allow = true
+transforms = ["raw", "markdown", "article"]
+
+# Example: YouTube only, markdown not allowed.
+[[rules]]
+match = "https://www.youtube.com/watch?v=*"
+allow = true
+transforms = ["youtube"]
+ignore_query = true
+
+[[rules]]
+match = "https://youtu.be/**"
+allow = true
+transforms = ["youtube"]
