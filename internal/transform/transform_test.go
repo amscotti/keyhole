@@ -14,8 +14,28 @@ import (
 var updateGoldens = flag.Bool("update", false, "regenerate golden files")
 
 func TestMain(m *testing.M) {
+	// Helper-process mode: re-executed as a child by
+	// TestPandocRunnerOutputOverflowRealSubprocess (marker env set, pandoc
+	// argv inherited). This branch runs before flag parsing, which the
+	// inherited `-f/-t` argv would otherwise break.
+	if os.Getenv("GO_WANT_HELPER_PROCESS") == "1" {
+		os.Exit(helperUnboundedOutput())
+	}
 	flag.Parse()
 	os.Exit(m.Run())
+}
+
+// helperUnboundedOutput emits far more than the runner's byte cap, then
+// blocks until killed. Exiting 0 is unreachable in the passing case — the
+// runner must kill the child promptly once output exceeds the cap.
+func helperUnboundedOutput() int {
+	chunk := []byte(strings.Repeat("unbounded-output-stand-in\n", 64))
+	for i := 0; i < 64; i++ {
+		if _, err := os.Stdout.Write(chunk); err != nil {
+			return 1
+		}
+	}
+	select {} // idle until the runner kills us
 }
 
 // loadFixture reads a file from testdata/.

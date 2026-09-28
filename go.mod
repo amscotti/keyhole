@@ -1,6 +1,6 @@
 module github.com/amscotti/keyhole
 
-go 1.26.5
+go 1.26.8
 
 require (
 	codeberg.org/readeck/go-readability/v2 v2.1.2
@@ -13,7 +13,7 @@ require (
 	github.com/prometheus/client_golang v1.24.1
 	github.com/temoto/robotstxt v1.1.2
 	go.uber.org/zap v1.28.0
-	golang.org/x/net v0.57.0
+	golang.org/x/net v0.59.0
 )
 
 require (
@@ -40,7 +40,7 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )

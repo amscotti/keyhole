@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os/exec"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -235,23 +235,25 @@ func (f fixedRunner) run(_ context.Context, _ string, _ []byte, _ int64) ([]byte
 }
 
 // TestPandocRunnerOutputOverflowRealSubprocess drives the real pandocRunner
-// against a single-process stand-in that emits unbounded output (yes repeats
-// its arguments forever). The runner must kill the child promptly (not stall
-// until the context deadline) and return a typed too_large error — previously
-// the child blocked on a full stdout pipe, Wait() hung until the timeout
-// fired, and the caller saw a misleading timeout classification.
+// against a re-executed copy of this test binary that emits unbounded output
+// (see TestMain's GO_WANT_HELPER_PROCESS branch). The runner must kill the
+// child promptly (not stall until the context deadline) and return a typed
+// too_large error — previously the child blocked on a full stdout pipe,
+// Wait() hung until the timeout fired, and the caller saw a misleading
+// timeout classification.
+//
+// Hermetic by design: an earlier revision shelled out to `yes`, which broke
+// on GNU coreutils (`yes: invalid option -- 'f'`) — BSD `yes` repeats argv as
+// output text while GNU parses flags. No external binary, no skip.
 func TestPandocRunnerOutputOverflowRealSubprocess(t *testing.T) {
-	yes, err := exec.LookPath("yes")
-	if err != nil {
-		t.Skip("no `yes` binary available as an unbounded-output stand-in")
-	}
+	t.Setenv("GO_WANT_HELPER_PROCESS", "1")
 
-	r := pandocRunner{path: yes}
+	r := pandocRunner{path: os.Args[0]}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	start := time.Now()
-	_, err = r.run(ctx, "docx", []byte("doc"), 4096)
+	_, err := r.run(ctx, "docx", []byte("doc"), 4096)
 	elapsed := time.Since(start)
 
 	var te *Error

@@ -4,7 +4,7 @@
 # Pin exact versions with `mise latest <tool>` when bumping.
 
 [tools]
-go = "1.26.5"            # core plugin
+go = "1.26.8"            # core plugin
 golangci-lint = "2.12.2" # lint gate (mise run lint)
 pandoc = "3.10.1"        # optional: office -> markdown
 

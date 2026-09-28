@@ -38,7 +38,6 @@ jobs:
         with:
           cache: true
           # Only install; tasks run explicitly below so failures surface clearly.
-          run: false
 
       # `mise run fmt` writes; in CI we check instead. gofmt -l lists files that
       # need formatting — any output is a failure. (golangci-lint's goimports
@@ -72,15 +71,12 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           cache: true
-          run: false
 
       - name: govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          # `go install` lands in $(go env GOPATH)/bin, which is not guaranteed
-          # to be on PATH for every runner image.
-          export PATH="$(go env GOPATH)/bin:$PATH"
-          govulncheck ./...
+        # `go run @latest` instead of `go install` + PATH surgery: the install
+        # landing spot (GOBIN vs GOPATH/bin) varies by runner image and broke
+        # this step with `command not found`.
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   # Office → Markdown integration lane. pandoc is pinned/installed by mise.
   # The -run filter is intentional: YouTube integration tests fetch the live
@@ -93,7 +89,6 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           cache: true
-          run: false
 
       - name: Office integration (pandoc)
         run: go test -tags=integration -run 'TestIntegrationOffice' ./internal/transform/...
@@ -108,7 +103,6 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           cache: true
-          run: false
 
       - name: Fuzz smoke (FuzzNormalize)
         run: go test -run=XXX -fuzz=FuzzNormalize -fuzztime=15s ./internal/rules/
